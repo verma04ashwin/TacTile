@@ -1,7 +1,6 @@
 package com.example.tactile_main
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.Log
 import android.widget.FrameLayout
@@ -12,13 +11,9 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.google.mediapipe.framework.image.MPImage
-import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.vision.core.RunningMode
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import java.util.concurrent.Executors
+import com.google.mediapipe.framework.image.MPImage
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 
 class CameraView @JvmOverloads constructor(
     context: Context,
@@ -26,14 +21,20 @@ class CameraView @JvmOverloads constructor(
 ) : FrameLayout(context, attrs) {
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
-    private lateinit var handLandmarker: HandLandmarker
     private lateinit var previewView: PreviewView
+    private lateinit var handLandmarkHelper: HandLandmarkHelper
 
     init {
         previewView = PreviewView(context)
         addView(previewView)
+        initHandLandmarkHelper()
         setupCamera()
-        initHandLandmarker()
+    }
+
+    private fun initHandLandmarkHelper() {
+        handLandmarkHelper = HandLandmarkHelper(context) { result, input ->
+            onResults(result, input)
+        }
     }
 
     private fun setupCamera() {
@@ -50,11 +51,8 @@ class CameraView @JvmOverloads constructor(
                 .build()
 
             imageAnalyzer.setAnalyzer(cameraExecutor) { imageProxy ->
-                if (::handLandmarker.isInitialized) {
-                    val bitmap = imageProxy.toBitmap()
-                    val mpImage = BitmapImageBuilder(bitmap).build()
-                    handLandmarker.detectAsync(mpImage, SystemClock.uptimeMillis())
-                }
+                val bitmap = imageProxy.toBitmap()
+                handLandmarkHelper.detect(bitmap)
                 imageProxy.close()
             }
 
@@ -67,21 +65,6 @@ class CameraView @JvmOverloads constructor(
                 imageAnalyzer
             )
         }, ContextCompat.getMainExecutor(context))
-    }
-
-    private fun initHandLandmarker() {
-        val baseOptions = BaseOptions.builder()
-            .setModelAssetPath("hand_landmarker.task")
-            .build()
-
-        val options = HandLandmarker.HandLandmarkerOptions.builder()
-            .setBaseOptions(baseOptions)
-            .setRunningMode(RunningMode.LIVE_STREAM)
-            .setNumHands(1)
-            .setResultListener(::onResults)
-            .build()
-
-        handLandmarker = HandLandmarker.createFromOptions(context, options)
     }
 
     private fun onResults(result: HandLandmarkerResult, input: MPImage) {
