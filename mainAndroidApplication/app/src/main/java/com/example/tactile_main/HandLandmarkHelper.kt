@@ -36,3 +36,4 @@ class HandLandmarkHelper(
         handLandmarker.detectAsync(mpImage, SystemClock.uptimeMillis())
     }
 }
+
