@@ -30,18 +30,15 @@ class TFLiteHelper(context: Context, modelName: String) {
 
     private fun preprocessImage(bitmap: Bitmap): ByteBuffer {
         val resizedBitmap = Bitmap.createScaledBitmap(bitmap, inputImageSize, inputImageSize, true)
-
-        val byteBuffer = ByteBuffer.allocateDirect(1 * inputImageSize * inputImageSize * 3 * 4) // RGB
+        val byteBuffer = ByteBuffer.allocateDirect(1 * inputImageSize * inputImageSize * 3 * 4)
         byteBuffer.order(ByteOrder.nativeOrder())
 
         for (y in 0 until inputImageSize) {
             for (x in 0 until inputImageSize) {
                 val pixel = resizedBitmap.getPixel(x, y)
-
                 val r = (pixel shr 16 and 0xFF) / 255.0f
                 val g = (pixel shr 8 and 0xFF) / 255.0f
                 val b = (pixel and 0xFF) / 255.0f
-
                 byteBuffer.putFloat(r)
                 byteBuffer.putFloat(g)
                 byteBuffer.putFloat(b)
@@ -51,26 +48,25 @@ class TFLiteHelper(context: Context, modelName: String) {
         return byteBuffer
     }
 
-    fun runInference(bitmap: Bitmap): Bitmap {
+    // Returns: (bitmapWithBoxDrawn, croppedDetectedRegionOrNull)
+    fun runInference(bitmap: Bitmap): Pair<Bitmap, Bitmap?> {
         val inputBuffer = preprocessImage(bitmap)
 
-        // Model output is [1, 5, 8400]
         val rawOutput = Array(1) { Array(5) { FloatArray(8400) } }
         interpreter.run(inputBuffer, rawOutput)
 
-        // Transpose to [8400][6] (add dummy class index if needed)
         val outputShape = Array(8400) { FloatArray(6) }
         for (i in 0 until 8400) {
             for (j in 0 until 5) {
                 outputShape[i][j] = rawOutput[0][j][i]
             }
-            outputShape[i][5] = 0f // Dummy class index
+            outputShape[i][5] = 0f
         }
 
         val originalWidth = bitmap.width.toFloat()
         val originalHeight = bitmap.height.toFloat()
 
-        val topDetection = outputShape.maxByOrNull { it[4] } // Highest confidence
+        val topDetection = outputShape.maxByOrNull { it[4] }
 
         val resultBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(resultBitmap)
@@ -82,6 +78,7 @@ class TFLiteHelper(context: Context, modelName: String) {
         }
 
         val confThreshold = 0.5f
+        var croppedBitmap: Bitmap? = null
 
         if (topDetection != null && topDetection[4] > confThreshold) {
             val x = topDetection[0] * originalWidth
@@ -89,15 +86,23 @@ class TFLiteHelper(context: Context, modelName: String) {
             val w = topDetection[2] * originalWidth
             val h = topDetection[3] * originalHeight
 
-            val left = x - w / 2f
-            val top = y - h / 2f
-            val right = x + w / 2f
-            val bottom = y + h / 2f
+            val left = (x - w / 2f).coerceIn(0f, originalWidth - 1)
+            val top = (y - h / 2f).coerceIn(0f, originalHeight - 1)
+            val right = (x + w / 2f).coerceIn(1f, originalWidth)
+            val bottom = (y + h / 2f).coerceIn(1f, originalHeight)
 
             canvas.drawRect(left, top, right, bottom, paint)
+
+            croppedBitmap = Bitmap.createBitmap(
+                bitmap,
+                left.toInt(),
+                top.toInt(),
+                (right - left).toInt(),
+                (bottom - top).toInt()
+            )
         }
 
-        return resultBitmap
+        return Pair(resultBitmap, croppedBitmap)
     }
 
     fun close() {
