@@ -1,14 +1,13 @@
-import android.app.Activity
+import android.util.Log
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.tactile_main.SpeechCommandHandler
 import com.example.tactile_main.CameraView
+import com.example.tactile_main.SpeechCommandHandler
 
 @Composable
 fun MainUI(
@@ -18,6 +17,11 @@ fun MainUI(
 ) {
     val options = listOf("indianCities.json", "indianStates.json")
     var expanded by remember { mutableStateOf(false) }
+
+    // 🔁 Log anytime selectedJson changes (useful for debugging)
+    LaunchedEffect(selectedJson) {
+        Log.d("MainUI", "selectedJson changed to: $selectedJson")
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -30,7 +34,8 @@ fun MainUI(
                     DropdownMenuItem(
                         text = { Text(file.removeSuffix(".json")) },
                         onClick = {
-                            onJsonSelected(file) // ✅ Update state via callback
+                            Log.d("MainUI", "User selected JSON from dropdown: $file") // ✅ Logging
+                            onJsonSelected(file)
                             expanded = false
                         }
                     )

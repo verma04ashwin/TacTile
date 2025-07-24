@@ -44,6 +44,10 @@ val camerax_version = "1.5.0-beta01"
 
 dependencies {
 
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.support)
+    implementation(libs.tensorflow.lite.gpu)
+
     implementation(libs.gson)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

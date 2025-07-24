@@ -1,6 +1,7 @@
 package com.example.tactile_main
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.Log
 import android.widget.FrameLayout
@@ -38,14 +39,41 @@ class CameraView @JvmOverloads constructor(
     fun setRegionFile(fileName: String) {
         if (regionFileName != fileName) {
             regionFileName = fileName
-            regions = null // force reload
+            regions = loadRegionsFromAssets() // ⬅️ immediately reload
+            Log.d("CameraView", "Region file updated: $fileName")
         }
     }
 
-    private fun initHandLandmarkHelper() {
-        handLandmarkHelper = HandLandmarkHelper(context) { result, input ->
-            onResults(result, input)
+    private fun onIndexFingerDetected(x: Float, y: Float) {
+        if (regions == null) {
+            regions = loadRegionsFromAssets()
         }
+
+        var found = false
+
+        regions?.forEach { region ->
+            region.segmentation.forEach { polygon ->
+                if (isPointInPolygon(x, y, polygon)) {
+                    Log.d("RegionMatch", "✅ Index finger is in region: ${region.category}")
+                    found = true
+                }
+            }
+        }
+
+        if (!found) {
+            Log.d("RegionMatch", "❌ Index finger is NOT inside any region.")
+        }
+
+        Log.d("IndexTip", "🧠 Detected index fingertip at x=$x, y=$y")
+    }
+
+
+
+    private fun initHandLandmarkHelper() {
+        handLandmarkHelper = HandLandmarkHelper(context) { x, y ->
+            onIndexFingerDetected(x, y)
+        }
+
     }
 
     private fun setupCamera() {
@@ -61,9 +89,18 @@ class CameraView @JvmOverloads constructor(
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
 
+            var lastAnalyzedTime = 0L
+
             imageAnalyzer.setAnalyzer(cameraExecutor) { imageProxy ->
-                val bitmap = imageProxy.toBitmap()
-                handLandmarkHelper.detect(bitmap)
+                val currentTime = SystemClock.elapsedRealtime()
+
+                // Limit processing to 1 frame every 200ms (~5 FPS)
+                if (currentTime - lastAnalyzedTime >= 1000) {
+                    val bitmap = imageProxy.toBitmap()
+                    handLandmarkHelper.detect(bitmap)
+                    lastAnalyzedTime = currentTime
+                }
+
                 imageProxy.close()
             }
 

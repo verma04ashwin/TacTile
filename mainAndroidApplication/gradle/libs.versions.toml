@@ -38,6 +38,11 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 tasks-vision = { module = "com.google.mediapipe:tasks-vision", version.ref = "tasksVision" }
 tensorflow-lite-task-vision = { module = "org.tensorflow:tensorflow-lite-task-vision", version.ref = "tensorflowLiteTaskVision" }
+tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version = "2.13.0" }
+tensorflow-lite-support = { module = "org.tensorflow:tensorflow-lite-support", version = "0.4.3" }
+tensorflow-lite-gpu = { module = "org.tensorflow:tensorflow-lite-gpu", version = "2.13.0" }
+
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
