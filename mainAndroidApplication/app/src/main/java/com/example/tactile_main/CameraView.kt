@@ -11,9 +11,11 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.util.concurrent.Executors
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.util.concurrent.Executors
 
 class CameraView @JvmOverloads constructor(
     context: Context,
@@ -23,12 +25,21 @@ class CameraView @JvmOverloads constructor(
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private lateinit var previewView: PreviewView
     private lateinit var handLandmarkHelper: HandLandmarkHelper
+    private var regionFileName = "indianCities.json"
+    private var regions: List<Region>? = null
 
     init {
         previewView = PreviewView(context)
         addView(previewView)
         initHandLandmarkHelper()
         setupCamera()
+    }
+
+    fun setRegionFile(fileName: String) {
+        if (regionFileName != fileName) {
+            regionFileName = fileName
+            regions = null // force reload
+        }
     }
 
     private fun initHandLandmarkHelper() {
@@ -67,14 +78,16 @@ class CameraView @JvmOverloads constructor(
         }, ContextCompat.getMainExecutor(context))
     }
 
-    private var regions: List<Region>? = null
-
     private fun loadRegionsFromAssets(): List<Region> {
-        val assetManager = context.assets
-        val inputStream = assetManager.open("flat_segmentation_only.json")
-        val json = inputStream.bufferedReader().use { it.readText() }
-        val type = object : com.google.gson.reflect.TypeToken<List<Region>>() {}.type
-        return com.google.gson.Gson().fromJson(json, type)
+        return try {
+            val inputStream = context.assets.open(regionFileName)
+            val json = inputStream.bufferedReader().use { it.readText() }
+            val type = object : TypeToken<List<Region>>() {}.type
+            Gson().fromJson(json, type)
+        } catch (e: Exception) {
+            Log.e("RegionLoader", "Failed to load $regionFileName", e)
+            emptyList()
+        }
     }
 
     private fun isPointInPolygon(x: Float, y: Float, polygon: List<Float>): Boolean {
@@ -95,7 +108,6 @@ class CameraView @JvmOverloads constructor(
         return inside
     }
 
-
     private fun onResults(result: HandLandmarkerResult, input: MPImage) {
         if (regions == null) {
             regions = loadRegionsFromAssets()
@@ -104,9 +116,8 @@ class CameraView @JvmOverloads constructor(
         val allHands = result.landmarks()
         if (allHands.isNotEmpty()) {
             val landmarks = allHands[0]
-            val tip = landmarks[8] // index finger tip
+            val tip = landmarks[8] // Index fingertip
 
-            // Assume 480x640 image if you're using consistent capture resolution
             val imgWidth = 480f
             val imgHeight = 640f
             val x = tip.x() * imgWidth
@@ -123,8 +134,4 @@ class CameraView @JvmOverloads constructor(
             Log.d("IndexTip", "x=$x, y=$y")
         }
     }
-
-
-
-
 }

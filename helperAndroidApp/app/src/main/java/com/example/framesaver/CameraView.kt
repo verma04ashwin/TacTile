@@ -1,7 +1,10 @@
 package com.example.framesaver
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Environment
 import android.util.AttributeSet
 import android.util.Log
@@ -12,11 +15,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.io.File
-import java.io.FileOutputStream
+import android.provider.MediaStore
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 import java.util.concurrent.Executors
 
 class CameraView @JvmOverloads constructor(
@@ -26,6 +28,7 @@ class CameraView @JvmOverloads constructor(
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private val previewView = PreviewView(context)
+    private var lastSavedTime = 0L
 
     init {
         addView(previewView)
@@ -47,7 +50,11 @@ class CameraView @JvmOverloads constructor(
                 .build()
 
             imageAnalyzer.setAnalyzer(cameraExecutor) { imageProxy ->
-                saveImage(imageProxy)
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastSavedTime >= 2000) { // 2 seconds
+                    saveImage(imageProxy)
+                    lastSavedTime = currentTime
+                }
                 imageProxy.close()
             }
 
@@ -63,19 +70,48 @@ class CameraView @JvmOverloads constructor(
     }
 
     private fun saveImage(imageProxy: ImageProxy) {
-        val bitmap = imageProxy.toBitmap()
-        val filename = "IMG_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.jpg"
-        val picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-        val file = File(picturesDir, filename)
+        val bitmap = imageProxy.toBitmap() ?: return
 
-        try {
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
+        val filename = "IMG_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.jpg"
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FrameSaver")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+        if (uri != null) {
+            try {
+                resolver.openOutputStream(uri)?.use { outputStream ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+                }
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+
+                Log.d("FrameSaver", "Saved: $uri")
+                Toast.makeText(context, "Saved: $uri", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e("FrameSaver", "Error saving image", e)
             }
-            Log.d("FrameSaver", "Saved: ${file.absolutePath}")
-            Toast.makeText(context, "Saved: ${file.name}", Toast.LENGTH_SHORT).show()
+        } else {
+            Log.e("FrameSaver", "Failed to create MediaStore entry")
+        }
+    }
+
+    // Convert ImageProxy to Bitmap (assumes JPEG format)
+    private fun ImageProxy.toBitmap(): Bitmap? {
+        return try {
+            val buffer: ByteBuffer = planes[0].buffer
+            val bytes = ByteArray(buffer.remaining())
+            buffer.get(bytes)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         } catch (e: Exception) {
-            Log.e("FrameSaver", "Error saving image", e)
+            Log.e("FrameSaver", "Failed to convert to Bitmap", e)
+            null
         }
     }
 }
