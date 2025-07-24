@@ -100,7 +100,6 @@ class CameraView @JvmOverloads constructor(
                     handLandmarkHelper.detect(bitmap)
                     lastAnalyzedTime = currentTime
                 }
-
                 imageProxy.close()
             }
 
