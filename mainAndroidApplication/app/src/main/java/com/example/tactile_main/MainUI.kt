@@ -15,7 +15,7 @@ fun MainUI(
     selectedJson: String,
     onJsonSelected: (String) -> Unit
 ) {
-    val options = listOf("indianCities.json", "indianStates.json")
+    val options = listOf("indianCities.json", "indianStates.json", "climate.json", "soil,json")
     var expanded by remember { mutableStateOf(false) }
 
     // 🔁 Log anytime selectedJson changes (useful for debugging)

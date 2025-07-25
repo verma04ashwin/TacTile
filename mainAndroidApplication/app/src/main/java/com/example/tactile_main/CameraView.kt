@@ -2,6 +2,7 @@ package com.example.tactile_main
 
 import android.content.Context
 import android.os.SystemClock
+import android.speech.tts.TextToSpeech
 import android.util.AttributeSet
 import android.util.Log
 import android.widget.FrameLayout
@@ -21,19 +22,29 @@ import java.util.concurrent.Executors
 class CameraView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
-) : FrameLayout(context, attrs) {
+) : FrameLayout(context, attrs), TextToSpeech.OnInitListener {
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private lateinit var previewView: PreviewView
     private lateinit var handLandmarkHelper: HandLandmarkHelper
     private var regionFileName = "indianCities.json"
     private var regions: List<Region>? = null
+    private var tts: TextToSpeech = TextToSpeech(context, this)
+    private var lastSpokenRegion: String? = null
 
     init {
         previewView = PreviewView(context)
         addView(previewView)
         initHandLandmarkHelper()
         setupCamera()
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            tts.language = java.util.Locale.US
+        } else {
+            Log.e("TTS", "Initialization failed")
+        }
     }
 
     fun setRegionFile(fileName: String) {
@@ -49,31 +60,34 @@ class CameraView @JvmOverloads constructor(
             regions = loadRegionsFromAssets()
         }
 
-        var found = false
+        var matchedRegion: String? = null
 
         regions?.forEach { region ->
             region.segmentation.forEach { polygon ->
                 if (isPointInPolygon(x, y, polygon)) {
+                    matchedRegion = region.category
                     Log.d("RegionMatch", "✅ Index finger is in region: ${region.category}")
-                    found = true
                 }
             }
         }
 
-        if (!found) {
+        matchedRegion?.let {
+            if (it != lastSpokenRegion) {
+                tts.speak(it, TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+            lastSpokenRegion = it
+        } ?: run {
             Log.d("RegionMatch", "❌ Index finger is NOT inside any region.")
+            lastSpokenRegion = null
         }
 
         Log.d("IndexTip", "🧠 Detected index fingertip at x=$x, y=$y")
     }
 
-
-
     private fun initHandLandmarkHelper() {
         handLandmarkHelper = HandLandmarkHelper(context) { x, y ->
             onIndexFingerDetected(x, y)
         }
-
     }
 
     private fun setupCamera() {
@@ -169,5 +183,11 @@ class CameraView @JvmOverloads constructor(
 
             Log.d("IndexTip", "x=$x, y=$y")
         }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        tts.stop()
+        tts.shutdown()
     }
 }
