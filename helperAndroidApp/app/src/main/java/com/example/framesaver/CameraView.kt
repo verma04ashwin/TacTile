@@ -35,6 +35,39 @@ class CameraView @JvmOverloads constructor(
         setupCamera()
     }
 
+    private fun captureImage(imageCapture: ImageCapture) {
+        val filename = "IMG_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.jpg"
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FrameSaver")
+        }
+
+        val outputOptions = ImageCapture.OutputFileOptions
+            .Builder(
+                context.contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            ).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(context),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    val savedUri = outputFileResults.savedUri
+                    Log.d("FrameSaver", "Saved: $savedUri")
+                    Toast.makeText(context, "Saved: $savedUri", Toast.LENGTH_SHORT).show()
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e("FrameSaver", "Image capture failed", exception)
+                }
+            }
+        )
+    }
+
+
     private fun setupCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -45,18 +78,23 @@ class CameraView @JvmOverloads constructor(
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
-            val imageAnalyzer = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            val imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
 
-            imageAnalyzer.setAnalyzer(cameraExecutor) { imageProxy ->
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastSavedTime >= 2000) { // 2 seconds
-                    saveImage(imageProxy)
-                    lastSavedTime = currentTime
+// Capture an image every 2 seconds
+            cameraExecutor.execute {
+                while (true) {
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastSavedTime >= 2000) {
+                        captureImage(imageCapture)
+                        lastSavedTime = currentTime
+                    }
+                    Thread.sleep(100) // Sleep briefly to avoid busy loop
                 }
-                imageProxy.close()
             }
+
+
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -64,8 +102,9 @@ class CameraView @JvmOverloads constructor(
                 context as LifecycleOwner,
                 cameraSelector,
                 preview,
-                imageAnalyzer
+                imageCapture // This is the new correct binding
             )
+
         }, ContextCompat.getMainExecutor(context))
     }
 

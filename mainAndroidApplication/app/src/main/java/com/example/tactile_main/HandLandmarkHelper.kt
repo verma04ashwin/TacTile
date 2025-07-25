@@ -10,10 +10,15 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class HandLandmarkHelper(
-    context: Context,
-    modelName: String = "best_float32.tflite", // your detection model
+    private val context: Context,
+    modelName: String = "best_float32.tflite",
     private val onAdjustedIndexTip: (Float, Float) -> Unit
 ) {
     private val tfliteHelper = TFLiteHelper(context, modelName)
@@ -28,8 +33,8 @@ class HandLandmarkHelper(
             .setBaseOptions(baseOptions)
             .setRunningMode(RunningMode.LIVE_STREAM)
             .setNumHands(1)
-            .setResultListener { result, mpImage ->
-                handleLandmarkResult(result, mpImage)
+            .setResultListener { result, _ ->
+                handleLandmarkResult(result)
             }
             .build()
 
@@ -56,50 +61,81 @@ class HandLandmarkHelper(
             return
         }
 
-        // 3. Calculate bounding box
-        val boxLeft = ((x - w / 2f) * 640).coerceIn(0f, 639f)
-        val boxTop = ((y - h / 2f) * 640).coerceIn(0f, 639f)
-        val boxRight = ((x + w / 2f) * 640).coerceIn(0f, 640f)
-        val boxBottom = ((y + h / 2f) * 640).coerceIn(0f, 640f)
+        // 3. Calculate bounding box in 640x640 image
+        val boxLeft = ((x - w / 2f) * 640).toInt().coerceIn(0, 639)
+        val boxTop = ((y - h / 2f) * 640).toInt().coerceIn(0, 639)
+        val boxRight = ((x + w / 2f) * 640).toInt().coerceIn(0, 640)
+        val boxBottom = ((y + h / 2f) * 640).toInt().coerceIn(0, 640)
 
-        lastDetectionBox = floatArrayOf(boxLeft, boxTop, boxRight - boxLeft, boxBottom - boxTop)
+        // 4. Expand box by 200px on all sides
+        val expandedLeft = (boxLeft - 200).coerceIn(0, 639)
+        val expandedTop = (boxTop - 200).coerceIn(0, 639)
+        val expandedRight = (boxRight + 200).coerceIn(0, 640)
+        val expandedBottom = (boxBottom + 200).coerceIn(0, 640)
 
-        // 4. Run landmark detection using resized bitmap
-        val mpImage = BitmapImageBuilder(resizedBitmap).build()
-        handLandmarker.detectAsync(mpImage, SystemClock.uptimeMillis())
+        // 5. Crop expanded region and resize to 1280x1280
+        try {
+            val width = expandedRight - expandedLeft
+            val height = expandedBottom - expandedTop
+
+            if (width <= 0 || height <= 0) {
+                Log.e("Crop", "❌ Invalid expanded crop dimensions.")
+                return
+            }
+
+            val cropped = Bitmap.createBitmap(
+                resizedBitmap,
+                expandedLeft,
+                expandedTop,
+                width,
+                height
+            )
+
+            val scaled = Bitmap.createScaledBitmap(cropped, 1280, 1280, true)
+            saveFrame(scaled)
+
+            // 6. Run landmark detection on the cropped+resized image
+            val mpImage = BitmapImageBuilder(scaled).build()
+            handLandmarker.detectAsync(mpImage, SystemClock.uptimeMillis())
+
+        } catch (e: Exception) {
+            Log.e("CropSave", "❌ Error cropping or scaling frame", e)
+        }
     }
 
-    private var lastDetectionBox: FloatArray? = null
-
-    private fun handleLandmarkResult(result: HandLandmarkerResult, mpImage: MPImage) {
-        if (result.landmarks().isEmpty() || lastDetectionBox == null) return
+    private fun handleLandmarkResult(result: HandLandmarkerResult) {
+        if (result.landmarks().isEmpty()) return
 
         val landmarks = result.landmarks()[0]
         if (landmarks.size <= 8) return
 
-        val indexTip = landmarks[8] // Index finger tip
+        val indexTip = landmarks[8]
 
-        // Image size = 640x640
-        val absoluteX = indexTip.x() * 640f
-        val absoluteY = indexTip.y() * 640f
+        // Image size = 1280x1280
+        val unnormalizedX = indexTip.x() * 1280f
+        val unnormalizedY = indexTip.y() * 1280f
 
-        val (boxLeft, boxTop, boxWidth, boxHeight) = lastDetectionBox!!
-
-        // Adjust finger position relative to detection box
-        val adjustedX = ((absoluteX - boxLeft) / boxWidth).coerceIn(0f, 1f)
-        val adjustedY = ((absoluteY - boxTop) / boxHeight).coerceIn(0f, 1f)
-
-        // 🔁 Unnormalize: convert back to full image coordinate system
-        val unnormalizedX = boxLeft + (adjustedX * boxWidth)
-        val unnormalizedY = boxTop + (adjustedY * boxHeight)
-
-        Log.d("HandLandmarkHelper", "👆 Index finger absolute: ($absoluteX, $absoluteY)")
-        Log.d("HandLandmarkHelper", "📦 Detection box: left=$boxLeft, top=$boxTop, w=$boxWidth, h=$boxHeight")
-        Log.d("HandLandmarkHelper", "📍 Unnormalized index tip: ($unnormalizedX, $unnormalizedY)")
-
+        Log.d("HandLandmarkHelper", "👆 Index finger absolute in 1280x1280 image: ($unnormalizedX, $unnormalizedY)")
         onAdjustedIndexTip(unnormalizedX, unnormalizedY)
     }
 
+    private fun saveFrame(bitmap: Bitmap) {
+        try {
+            val dir = File(context.getExternalFilesDir(null), "frames")
+            if (!dir.exists()) dir.mkdirs()
+
+            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+            val file = File(dir, "cropped_$timeStamp.png")
+
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+
+            Log.d("FrameSaver", "✅ Cropped frame saved: ${file.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("FrameSaver", "❌ Failed to save cropped frame", e)
+        }
+    }
 
     fun close() {
         handLandmarker.close()
