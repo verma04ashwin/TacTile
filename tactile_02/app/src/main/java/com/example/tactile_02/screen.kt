@@ -1,4 +1,5 @@
-package com.example.tactile_02
+
+12package com.example.tactile_02
 
 import android.content.Context
 import androidx.compose.foundation.layout.*

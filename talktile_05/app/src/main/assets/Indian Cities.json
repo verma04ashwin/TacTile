@@ -1,0 +1,196 @@
+[
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Delhi a modern City",
+    "segmentation": [
+      [
+        431.448,
+        231.563,
+        440.986,
+        229.337,
+        450.527,
+        223.223,
+        431.264,
+        199.319,
+        419.809,
+        223.187,
+        420.256,
+        224.52,
+        420.991,
+        230.451,
+        431.448,
+        231.563
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Rohtak an Ancient City",
+    "segmentation": [
+      [
+        431.264,
+        197.465,
+        440.436,
+        207.473,
+        446.124,
+        201.914,
+        443.555,
+        189.128,
+        427.001,
+        177.269,
+        416.587,
+        188.572,
+        418.606,
+        206.361,
+        426.128,
+        206.175,
+        431.264,
+        197.465
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Kurukshetra an Ancient City",
+    "segmentation": [
+      [
+        442.919,
+        178.826,
+        447.224,
+        202.47,
+        462.635,
+        198.763,
+        457.131,
+        175.229,
+        442.919,
+        178.826
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Malvanagar an Ancient City",
+    "segmentation": [
+      [
+        368.785,
+        211.328,
+        368.835,
+        253.909,
+        406.444,
+        255.577,
+        400.756,
+        211.105,
+        368.785,
+        211.328
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Ujjain an Ancient City",
+    "segmentation": [
+      [
+        318.645,
+        158.851,
+        318.753,
+        181.306,
+        341.685,
+        186.495,
+        349.756,
+        162.035,
+        318.645,
+        158.851
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Maheshwar an Ancient City",
+    "segmentation": [
+      [
+        291.419,
+        148.509,
+        291.428,
+        153.921,
+        285.365,
+        182.048,
+        315.634,
+        188.348,
+        316.918,
+        151.102,
+        291.419,
+        148.509
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Bombay an Modern City",
+    "segmentation": [
+      [
+        213.17,
+        138.53,
+        184.149,
+        148.62,
+        208.215,
+        173.261,
+        213.17,
+        138.53
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Kolkata a Modern City",
+    "segmentation": [
+      [
+        319.794,
+        421.685,
+        321.028,
+        440.63,
+        344.046,
+        437.942,
+        346.082,
+        423.073,
+        319.794,
+        421.685
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Chennai a Modern City",
+    "segmentation": [
+      [
+        174.687,
+        258.283,
+        173.67,
+        273.149,
+        188.235,
+        291.499,
+        192.462,
+        265.082,
+        174.687,
+        258.283
+      ]
+    ]
+  },
+  {
+    "image": "mapRegion_crop_1753650513896_png.rf.3332d96845ba7c98344c2f74e07457fa.jpg",
+    "category": "Bengalurua aModern City",
+    "segmentation": [
+      [
+        120.769,
+        221.079,
+        120.785,
+        246.449,
+        149.129,
+        248.823,
+        148.502,
+        214.181,
+        120.769,
+        221.079
+      ]
+    ]
+  }
+]
