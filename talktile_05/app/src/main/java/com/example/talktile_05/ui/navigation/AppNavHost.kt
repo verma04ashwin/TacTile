@@ -9,10 +9,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.talktile_05.ui.HomeScreen
 import com.example.talktile_05.ui.ReaderScreen
-import com.example.talktile_05.ui.map.MapInteractionScreen
+import com.example.talktile_05.ui.map.CameraMapScreen
 import com.example.talktile_05.viewmodel.HomeViewModel
 import com.example.talktile_05.viewmodel.ReaderViewModel
-import com.example.talktile_05.viewmodel.MapInteractionViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -55,14 +54,15 @@ fun AppNavHost() {
                 vm = readerVm,
                 onBack = { navController.popBackStack() },
                 onOpenMap = { bName, cName, mapFile ->
-                    val mf = URLEncoder.encode(mapFile, "UTF-8")
                     val b = URLEncoder.encode(bName, "UTF-8")
                     val c = URLEncoder.encode(cName, "UTF-8")
+                    val mf = URLEncoder.encode(mapFile, "UTF-8")
                     navController.navigate("map/$b/$c/$mf")
                 }
             )
         }
 
+        // FIXED MAP ROUTE
         composable(
             route = "map/{book}/{chapter}/{mapfile}",
             arguments = listOf(
@@ -76,13 +76,10 @@ fun AppNavHost() {
             val chapter = URLDecoder.decode(entry.arguments!!.getString("chapter")!!, "UTF-8")
             val mapfile = URLDecoder.decode(entry.arguments!!.getString("mapfile")!!, "UTF-8")
 
-            val vm: MapInteractionViewModel = viewModel(viewModelStoreOwner = entry)
-
-            MapInteractionScreen(
+            CameraMapScreen(
                 book = book,
                 chapter = chapter,
                 mapJsonFile = mapfile,
-                vm = vm,
                 onBack = { navController.popBackStack() }
             )
         }

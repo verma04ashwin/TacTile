@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.collectLatest
 import com.example.talktile_05.ui.components.AccessibleButton
 import com.example.talktile_05.ui.components.VoiceMicButton
-import com.example.talktile_05.util.findActivity
+import com.example.talktile_05.utils.findActivity
 import com.example.talktile_05.viewmodel.ReaderViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

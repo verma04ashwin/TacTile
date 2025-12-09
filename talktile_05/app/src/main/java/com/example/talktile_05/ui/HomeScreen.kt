@@ -15,7 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.talktile_05.ui.components.AccessibleButton
 import com.example.talktile_05.ui.components.DropdownList
 import com.example.talktile_05.ui.components.VoiceMicButton
-import com.example.talktile_05.util.findActivity
+import com.example.talktile_05.utils.findActivity
 import com.example.talktile_05.viewmodel.HomeViewModel
 
 @Composable

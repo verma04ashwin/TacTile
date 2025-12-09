@@ -24,14 +24,27 @@ class MapMetadataLoader(
     fun loadMapInfo(book: String, chapter: String): List<MapInfo> {
         val path = "$book/$chapter/maps.json"
 
+        Log.d("MapLoader", "Attempting to load map metadata from: $path")
+
         return try {
-            val text = readAssetFile(path) ?: return emptyList()
-            parseJson(text)
+            val text = readAssetFile(path)
+            if (text == null) {
+                Log.e("MapLoader", "maps.json NOT FOUND at: $path")
+                return emptyList()
+            }
+
+            Log.d("MapLoader", "maps.json loaded successfully: $path")
+            val parsed = parseJson(text)
+
+            Log.d("MapLoader", "Parsed mapInfoList = $parsed")
+
+            parsed
         } catch (e: Exception) {
-            Log.e("MapMetadataLoader", "Failed to load maps: ${e.message}")
+            Log.e("MapLoader", "Failed to load maps.json at $path", e)
             emptyList()
         }
     }
+
 
     // -----------------------------------------
     // JSON Parsing

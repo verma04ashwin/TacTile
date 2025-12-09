@@ -11,8 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.talktile_05.ui.HomeScreen
 import com.example.talktile_05.ui.ReaderScreen
-import com.example.talktile_05.ui.map.MapInteractionScreen
-import com.example.talktile_05.viewmodel.MapInteractionViewModel
+import com.example.talktile_05.ui.map.CameraMapScreen
 import com.example.talktile_05.viewmodel.ReaderViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -23,7 +22,10 @@ import java.nio.charset.StandardCharsets
 fun TalktileApp() {
     val navController = rememberNavController()
 
-    NavHost(navController, startDestination = "home") {
+    NavHost(
+        navController = navController,
+        startDestination = "home"
+    ) {
 
         // HOME SCREEN
         composable("home") {
@@ -38,14 +40,13 @@ fun TalktileApp() {
 
         // READER SCREEN
         composable(
-            "reader/{book}/{chapter}/{page}",
+            route = "reader/{book}/{chapter}/{page}",
             arguments = listOf(
                 navArgument("book") { type = NavType.StringType },
                 navArgument("chapter") { type = NavType.StringType },
                 navArgument("page") { type = NavType.IntType }
             )
         ) { entry ->
-
             val vm: ReaderViewModel = viewModel(viewModelStoreOwner = entry)
 
             val book = URLDecoder.decode(entry.arguments!!.getString("book")!!, StandardCharsets.UTF_8)
@@ -67,7 +68,7 @@ fun TalktileApp() {
             )
         }
 
-        // MAP INTERACTION SCREEN
+        // CAMERA MAP SCREEN
         composable(
             route = "map/{book}/{chapter}/{mapFile}",
             arguments = listOf(
@@ -81,13 +82,10 @@ fun TalktileApp() {
             val chapter = URLDecoder.decode(entry.arguments!!.getString("chapter")!!, StandardCharsets.UTF_8)
             val mapFile = URLDecoder.decode(entry.arguments!!.getString("mapFile")!!, StandardCharsets.UTF_8)
 
-            val vm: MapInteractionViewModel = viewModel()
-
-            MapInteractionScreen(
+            CameraMapScreen(
                 book = book,
                 chapter = chapter,
                 mapJsonFile = mapFile,
-                vm = vm,
                 onBack = { navController.popBackStack() }
             )
         }
