@@ -27,7 +27,7 @@ fun ReaderScreen(
     page: Int,
     vm: ReaderViewModel,
     onBack: () -> Unit,
-    onOpenMap: (String, String, String) -> Unit     // FIXED CALLBACK SIGNATURE
+    onOpenMap: (String, String, String) -> Unit
 ) {
     val activity = LocalContext.current.findActivity()
 
@@ -37,17 +37,17 @@ fun ReaderScreen(
     val pageBitmap = vm.pageBitmap.value
     val currentPage by vm.currentPage.collectAsState()
 
-    // load page on first display
+    val mapFile by vm.mapForCurrentPage.collectAsState()
+
+    // Load page ON FIRST ENTRY
     LaunchedEffect(Unit) {
         vm.open(book, chapter, page)
     }
 
-    // listen for VM map open requests and navigate to MapInteraction screen
-    LaunchedEffect(vm) {
-        vm.openMapRequest.collectLatest { mapFile ->
-            if (!mapFile.isNullOrEmpty()) {
-                onOpenMap(book, chapter, mapFile)  // PASSES ALL 3 VALUES
-            }
+    // Listen for open map events from voice command
+    LaunchedEffect(Unit) {
+        vm.openMapRequest.collectLatest { mf ->
+            onOpenMap(book, chapter, mf)
         }
     }
 
@@ -81,6 +81,7 @@ fun ReaderScreen(
 
                 Spacer(Modifier.height(12.dp))
 
+                // Page Image
                 pageBitmap?.let {
                     Image(
                         bitmap = it.asImageBitmap(),
@@ -94,6 +95,7 @@ fun ReaderScreen(
 
                 Spacer(Modifier.height(12.dp))
 
+                // Paragraph
                 Text(
                     "Paragraph ${index + 1}",
                     fontSize = 22.sp,
@@ -107,32 +109,73 @@ fun ReaderScreen(
                 )
             }
 
+            // -------------------- ACTION BUTTONS --------------------
             Column(
                 Modifier
                     .fillMaxWidth()
                     .padding(12.dp)
             ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AccessibleButton(text = "Prev Para", modifier = Modifier.weight(1f)) { vm.prevParagraph() }
-                    AccessibleButton(text = "Next Para", modifier = Modifier.weight(1f)) { vm.nextParagraph() }
+
+                // ---------- OPEN MAP BUTTON ----------
+                Button(
+                    onClick = {
+                        if (mapFile != null) {
+                            onOpenMap(book, chapter, mapFile!!)
+                        } else {
+                            vm.speak("There is no map on this page.")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Text("Open Map")
+                }
+
+                // ---------- Navigation & TTS Controls ----------
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AccessibleButton(text = "Prev Para", modifier = Modifier.weight(1f)) {
+                        vm.prevParagraph()
+                    }
+                    AccessibleButton(text = "Next Para", modifier = Modifier.weight(1f)) {
+                        vm.nextParagraph()
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AccessibleButton(text = "Prev Page", modifier = Modifier.weight(1f)) { vm.prevPage() }
-                    AccessibleButton(text = "Next Page", modifier = Modifier.weight(1f)) { vm.nextPage() }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AccessibleButton(text = "Prev Page", modifier = Modifier.weight(1f)) {
+                        vm.prevPage()
+                    }
+                    AccessibleButton(text = "Next Page", modifier = Modifier.weight(1f)) {
+                        vm.nextPage()
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AccessibleButton(text = "Pause", modifier = Modifier.weight(1f)) { vm.pauseTTS() }
-                    AccessibleButton(text = "Resume", modifier = Modifier.weight(1f)) { vm.resumeTTS() }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AccessibleButton(text = "Pause", modifier = Modifier.weight(1f)) {
+                        vm.pauseTTS()
+                    }
+                    AccessibleButton(text = "Resume", modifier = Modifier.weight(1f)) {
+                        vm.resumeTTS()
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))
 
+                // ---------- Voice Commands ----------
                 VoiceMicButton(
                     contentDescription = "Voice Command",
                     onPress = { activity?.let { vm.startVoiceCommand(it) } }

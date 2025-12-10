@@ -1,7 +1,3 @@
-// ------------------------------------------------------------
-// READER VIEWMODEL WITH DEBUG LOGS ADDED
-// ------------------------------------------------------------
-
 package com.example.talktile_05.viewmodel
 
 import android.app.Activity
@@ -24,7 +20,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
-
 class ReaderViewModel(
     private val repo: PdfRepository = PdfRepository(),
     private val extractor: PdfTextExtractor = PdfTextExtractor(App.instance),
@@ -33,7 +28,6 @@ class ReaderViewModel(
     private val parser: VoiceCommandParser = VoiceCommandParser(),
     private val mapLoader: MapMetadataLoader = MapMetadataLoader(App.instance)
 ) : ViewModel() {
-
 
     val book = MutableStateFlow<String?>(null)
     val chapter = MutableStateFlow<String?>(null)
@@ -46,8 +40,11 @@ class ReaderViewModel(
 
     private var mapInfoList: List<MapInfo> = emptyList()
 
-    // UI layer collects this to navigate into map screen
-    val openMapRequest = MutableStateFlow<String?>(null)
+    // Navigation trigger (one-time)
+    val openMapRequest = MutableSharedFlow<String>(replay = 0)
+
+    // Does this page have a map?
+    val mapForCurrentPage = MutableStateFlow<String?>(null)
 
     val currentParagraphText = currentParagraphIndex
         .combine(_paragraphs) { idx, list -> list.getOrNull(idx) ?: "" }
@@ -59,7 +56,7 @@ class ReaderViewModel(
 
     // ------------------------------------------------------------
     fun open(bookName: String, chapterName: String, page: Int) {
-        Log.d("ReaderVM", "open() called: book=$bookName chapter=$chapterName page=$page")
+        Log.d("ReaderVM", "open() called: $bookName / $chapterName / page $page")
 
         book.value = bookName
         chapter.value = chapterName
@@ -67,13 +64,11 @@ class ReaderViewModel(
         currentParagraphIndex.value = 0
 
         mapInfoList = mapLoader.loadMapInfo(bookName, chapterName)
-        Log.d("ReaderVM", "mapInfoList loaded: $mapInfoList")
-
-        loadCurrentPage(firstOpen = true)
+        loadCurrentPage()
     }
 
     // ------------------------------------------------------------
-    fun loadCurrentPage(firstOpen: Boolean = false) {
+    fun loadCurrentPage() {
         val b = book.value ?: return
         val c = chapter.value ?: return
         val p = currentPage.value
@@ -84,11 +79,8 @@ class ReaderViewModel(
             isLoading.value = true
             try {
                 val pdfPath = repo.pdfPathFor(b, c)
-                Log.d("ReaderVM", "Resolved PDF path: $pdfPath")
 
                 val paras = extractor.extractParagraphsFromAsset(pdfPath, p - 1)
-                Log.d("ReaderVM", "Paragraph count: ${paras.size}")
-
                 _paragraphs.value = paras.ifEmpty {
                     listOf("This page contains no readable text.")
                 }
@@ -98,23 +90,15 @@ class ReaderViewModel(
 
                 pageBitmap.value = renderPageBitmap(pdfPath, p - 1)
 
-                // ----- Check map presence -----
+                // -------- MAP DETECTION --------
                 val mapOnPage = mapInfoList.find { it.page == p }
-                Log.d(
-                    "ReaderVM",
-                    "Checking for map on page $p → result = $mapOnPage"
-                )
+                mapForCurrentPage.value = mapOnPage?.name
 
                 if (mapOnPage != null) {
-                    Log.d("ReaderVM", "MAP FOUND. Triggering openMapRequest with: ${mapOnPage.name}")
-                    tts.speak("This page contains a map: ${mapOnPage.name}. Say 'open map' to view it.")
-                    openMapRequest.value = mapOnPage.name
-                } else {
-                    Log.d("ReaderVM", "NO MAP FOUND on this page.")
-                    openMapRequest.value = null
+                    tts.speak("This page contains a map. You can say 'open map' or press the Open Map button.")
                 }
 
-                delay(120)
+                delay(150)
                 speakCurrent()
 
                 stateDao.upsert(
@@ -136,12 +120,15 @@ class ReaderViewModel(
         }
     }
 
-    // ------------------------------------------------------------
+    fun speak(message: String) {
+        tts.speak(message)
+    }
+
+
     private fun renderPageBitmap(assetPath: String, index: Int): Bitmap? {
         return try {
             val cacheFile = File(App.instance.cacheDir, assetPath.replace("/", "_"))
             if (!cacheFile.exists()) {
-                Log.d("ReaderVM", "Copying PDF asset to cache: $assetPath")
                 App.instance.assets.open(assetPath).use { input ->
                     FileOutputStream(cacheFile).use { out -> input.copyTo(out) }
                 }
@@ -163,7 +150,7 @@ class ReaderViewModel(
         }
     }
 
-    // ------------------------------------------------------------
+    // Pagination -----------------------
     fun nextParagraph() {
         if (currentParagraphIndex.value < _paragraphs.value.lastIndex) {
             currentParagraphIndex.value++
@@ -178,7 +165,6 @@ class ReaderViewModel(
         } else prevPage()
     }
 
-    // ------------------------------------------------------------
     fun nextPage() {
         currentPage.value++
         currentParagraphIndex.value = 0
@@ -193,7 +179,6 @@ class ReaderViewModel(
         } else tts.speak("Already on the first page.")
     }
 
-    // ------------------------------------------------------------
     private fun speakCurrent() {
         val text = currentParagraphText.value
         if (text.isNotBlank()) {
@@ -213,38 +198,25 @@ class ReaderViewModel(
 
     private suspend fun handleVoice(raw: String) {
         val cmd = parser.parse(raw)
-        Log.d("ReaderVM", "Voice command parsed: $cmd")
 
         when (cmd.action) {
-
             ParsedCommand.Action.NEXT_PARAGRAPH -> nextParagraph()
             ParsedCommand.Action.PREV_PARAGRAPH -> prevParagraph()
             ParsedCommand.Action.NEXT_PAGE -> nextPage()
             ParsedCommand.Action.PREV_PAGE -> prevPage()
 
             ParsedCommand.Action.GO_TO_PAGE -> cmd.page?.let {
-                Log.d("ReaderVM", "Going to page $it")
                 currentPage.value = it
                 currentParagraphIndex.value = 0
                 loadCurrentPage()
             }
 
-            ParsedCommand.Action.GO_TO_PARAGRAPH -> {
-                val idx = (cmd.paragraph ?: 1) - 1
-                Log.d("ReaderVM", "Going to paragraph $idx")
-                currentParagraphIndex.value =
-                    idx.coerceIn(0, _paragraphs.value.lastIndex)
-                speakCurrent()
-            }
-
             ParsedCommand.Action.OPEN_MAP -> {
-                val page = currentPage.value
-                val map = mapInfoList.find { it.page == page }
-                Log.d("ReaderVM", "OPEN_MAP requested. map=$map")
-                if (map != null) {
-                    openMapRequest.value = map.name
+                val mapFile = mapForCurrentPage.value
+                if (mapFile != null) {
+                    openMapRequest.emit(mapFile)
                 } else {
-                    tts.speak("No map found on this page.")
+                    tts.speak("There is no map on this page.")
                 }
             }
 
@@ -271,9 +243,7 @@ class ReaderViewModel(
         }
     }
 
-    // ------------------------------------------------------------
     override fun onCleared() {
-        super.onCleared()
         stt.destroy()
         tts.shutdown()
     }
