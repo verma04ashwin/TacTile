@@ -8,6 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,7 +23,7 @@ import com.example.talktile_05.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(
-    onOpenReader: (String, String, Int) -> Unit,
+    onOpenReader: (String, String, Int, Int, Int) -> Unit,
     vm: HomeViewModel = viewModel()
 ) {
     val activity = LocalContext.current.findActivity()
@@ -30,18 +33,28 @@ fun HomeScreen(
     val selectedBook by vm.selectedBook.collectAsState()
     val selectedChapter by vm.selectedChapter.collectAsState()
     val pageInput by vm.pageInput.collectAsState()
+    val paragraphInput by vm.paragraphInput.collectAsState()
+    val lineInput by vm.lineInput.collectAsState()
 
     LaunchedEffect(Unit) { vm.loadBooks() }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(28.dp)
             .verticalScroll(rememberScrollState())
     ) {
 
-        Text("Talktile Reader", fontSize = 30.sp)
-        Spacer(Modifier.height(24.dp))
+        Text(
+            text = "Talktile Reader",
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics {
+                contentDescription = "Talktile Reader Home Screen"
+            }
+        )
+
+        Spacer(Modifier.height(32.dp))
 
         DropdownList(
             items = books,
@@ -50,7 +63,7 @@ fun HomeScreen(
             placeholder = "Select Book"
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
         DropdownList(
             items = chapters,
@@ -59,36 +72,66 @@ fun HomeScreen(
             placeholder = "Select Chapter"
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
         OutlinedTextField(
             value = pageInput,
             onValueChange = vm::updatePageInput,
             label = { Text("Page Number") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = LocalTextStyle.current.copy(fontSize = 20.sp)
         )
 
         Spacer(Modifier.height(20.dp))
 
-        AccessibleButton("Open Reader") {
-            val b = selectedBook ?: return@AccessibleButton
-            val c = selectedChapter ?: return@AccessibleButton
-            val p = pageInput.toIntOrNull() ?: 1
-            onOpenReader(b, c, p)
-        }
+        OutlinedTextField(
+            value = paragraphInput,
+            onValueChange = vm::updateParagraphInput,
+            label = { Text("Paragraph (optional)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = LocalTextStyle.current.copy(fontSize = 20.sp)
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = lineInput,
+            onValueChange = vm::updateLineInput,
+            label = { Text("Line (optional)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = LocalTextStyle.current.copy(fontSize = 20.sp)
+        )
 
         Spacer(Modifier.height(30.dp))
 
+        AccessibleButton(
+            text = "Start Reading",
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val b = selectedBook ?: return@AccessibleButton
+            val c = selectedChapter ?: return@AccessibleButton
+
+            val p = pageInput.toIntOrNull() ?: 1
+            val para = paragraphInput.toIntOrNull() ?: 1
+            val line = lineInput.toIntOrNull() ?: 1
+
+            onOpenReader(b, c, p, para, line)
+        }
+
+        Spacer(Modifier.height(40.dp))
+
         VoiceMicButton(
-            contentDescription = "Start Voice Command",
-            onPress = {
-                activity?.let {
-                    vm.startVoiceCommand(it) { book, chapter, page ->
-                        onOpenReader(book, chapter, page)
-                    }
+            contentDescription = "Voice Command",
+            modifier = Modifier.size(80.dp)
+        ) {
+            activity?.let {
+                vm.startVoiceCommand(it) { book, chapter, page, para, line ->
+                    onOpenReader(book, chapter, page, para, line)
                 }
             }
-        )
+        }
     }
 }

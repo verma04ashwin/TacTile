@@ -25,26 +25,25 @@ fun ReaderScreen(
     book: String,
     chapter: String,
     page: Int,
+    paragraph: Int,
+    line: Int,
     vm: ReaderViewModel,
     onBack: () -> Unit,
     onOpenMap: (String, String, String) -> Unit
 ) {
     val activity = LocalContext.current.findActivity()
 
-    val paragraph by vm.currentParagraphText.collectAsState("")
+    val paragraphText by vm.currentParagraphText.collectAsState("")
     val index by vm.currentParagraphIndex.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
-    val pageBitmap = vm.pageBitmap.value
+    val bitmap = vm.pageBitmap.value
     val currentPage by vm.currentPage.collectAsState()
-
     val mapFile by vm.mapForCurrentPage.collectAsState()
 
-    // Load page ON FIRST ENTRY
     LaunchedEffect(Unit) {
-        vm.open(book, chapter, page)
+        vm.open(book, chapter, page, paragraph, line)
     }
 
-    // Listen for open map events from voice command
     LaunchedEffect(Unit) {
         vm.openMapRequest.collectLatest { mf ->
             onOpenMap(book, chapter, mf)
@@ -57,7 +56,7 @@ fun ReaderScreen(
                 title = { Text("Page $currentPage") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -75,17 +74,15 @@ fun ReaderScreen(
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
             ) {
-
                 if (isLoading)
                     LinearProgressIndicator(Modifier.fillMaxWidth())
 
                 Spacer(Modifier.height(12.dp))
 
-                // Page Image
-                pageBitmap?.let {
+                bitmap?.let {
                     Image(
                         bitmap = it.asImageBitmap(),
-                        contentDescription = "PDF Page",
+                        contentDescription = "Page content",
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(500.dp)
@@ -95,91 +92,55 @@ fun ReaderScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                // Paragraph
-                Text(
-                    "Paragraph ${index + 1}",
-                    fontSize = 22.sp,
-                    modifier = Modifier.padding(12.dp)
-                )
-
-                Text(
-                    paragraph,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Text("Paragraph ${index + 1}", fontSize = 22.sp, modifier = Modifier.padding(12.dp))
+                Text(paragraphText, fontSize = 16.sp, modifier = Modifier.padding(16.dp))
             }
 
-            // -------------------- ACTION BUTTONS --------------------
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
+            Column(Modifier.padding(12.dp)) {
 
-                // ---------- OPEN MAP BUTTON ----------
                 Button(
                     onClick = {
-                        if (mapFile != null) {
-                            onOpenMap(book, chapter, mapFile!!)
-                        } else {
-                            vm.speak("There is no map on this page.")
-                        }
+                        if (mapFile != null) onOpenMap(book, chapter, mapFile!!)
+                        else vm.speak("There is no map on this page.")
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
+                        .height(65.dp)
                 ) {
-                    Text("Open Map")
+                    Text("Open Map", fontSize = 20.sp)
                 }
 
-                // ---------- Navigation & TTS Controls ----------
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    AccessibleButton(text = "Prev Para", modifier = Modifier.weight(1f)) {
-                        vm.prevParagraph()
-                    }
-                    AccessibleButton(text = "Next Para", modifier = Modifier.weight(1f)) {
-                        vm.nextParagraph()
-                    }
+                Spacer(Modifier.height(12.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    AccessibleButton("Prev Para", Modifier.weight(1f)) { vm.prevParagraph() }
+                    AccessibleButton("Next Para", Modifier.weight(1f)) { vm.nextParagraph() }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
 
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    AccessibleButton(text = "Prev Page", modifier = Modifier.weight(1f)) {
-                        vm.prevPage()
-                    }
-                    AccessibleButton(text = "Next Page", modifier = Modifier.weight(1f)) {
-                        vm.nextPage()
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    AccessibleButton("Prev Page", Modifier.weight(1f)) { vm.prevPage() }
+                    AccessibleButton("Next Page", Modifier.weight(1f)) { vm.nextPage() }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
 
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    AccessibleButton(text = "Pause", modifier = Modifier.weight(1f)) {
-                        vm.pauseTTS()
-                    }
-                    AccessibleButton(text = "Resume", modifier = Modifier.weight(1f)) {
-                        vm.resumeTTS()
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    AccessibleButton("Pause", Modifier.weight(1f)) { vm.pauseTTS() }
+                    AccessibleButton("Resume", Modifier.weight(1f)) { vm.resumeTTS() }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(16.dp))
 
-                // ---------- Voice Commands ----------
                 VoiceMicButton(
                     contentDescription = "Voice Command",
-                    onPress = { activity?.let { vm.startVoiceCommand(it) } }
-                )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(75.dp)
+                ) {
+                    activity?.let { vm.startVoiceCommand(it) }
+                }
             }
         }
     }

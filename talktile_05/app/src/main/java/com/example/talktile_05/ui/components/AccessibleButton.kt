@@ -21,6 +21,7 @@ fun AccessibleButton(
             .semantics { this.contentDescription = text }
             .fillMaxWidth()
     ) {
-        Text(text, fontSize = 15.sp)
+        Text(text, fontSize = 18.sp)
     }
+
 }

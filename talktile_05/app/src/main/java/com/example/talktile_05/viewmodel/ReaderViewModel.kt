@@ -31,8 +31,10 @@ class ReaderViewModel(
 
     val book = MutableStateFlow<String?>(null)
     val chapter = MutableStateFlow<String?>(null)
+
     val currentPage = MutableStateFlow(1)
     val currentParagraphIndex = MutableStateFlow(0)
+    val currentLineIndex = MutableStateFlow(0) // reserved for future line-reading support
 
     private val _paragraphs = MutableStateFlow(emptyList<String>())
     val pageBitmap = mutableStateOf<Bitmap?>(null)
@@ -40,10 +42,7 @@ class ReaderViewModel(
 
     private var mapInfoList: List<MapInfo> = emptyList()
 
-    // Navigation trigger (one-time)
     val openMapRequest = MutableSharedFlow<String>(replay = 0)
-
-    // Does this page have a map?
     val mapForCurrentPage = MutableStateFlow<String?>(null)
 
     val currentParagraphText = currentParagraphIndex
@@ -55,15 +54,18 @@ class ReaderViewModel(
     private val bookmarkDao = db.bookmarkDao()
 
     // ------------------------------------------------------------
-    fun open(bookName: String, chapterName: String, page: Int) {
-        Log.d("ReaderVM", "open() called: $bookName / $chapterName / page $page")
+    fun open(bookName: String, chapterName: String, page: Int, paragraph: Int, line: Int) {
+        Log.d("ReaderVM", "open(): book=$bookName chapter=$chapterName page=$page para=$paragraph line=$line")
 
         book.value = bookName
         chapter.value = chapterName
+
         currentPage.value = page
-        currentParagraphIndex.value = 0
+        currentParagraphIndex.value = (paragraph - 1).coerceAtLeast(0)
+        currentLineIndex.value = (line - 1).coerceAtLeast(0)
 
         mapInfoList = mapLoader.loadMapInfo(bookName, chapterName)
+
         loadCurrentPage()
     }
 
@@ -73,30 +75,24 @@ class ReaderViewModel(
         val c = chapter.value ?: return
         val p = currentPage.value
 
-        Log.d("ReaderVM", "Loading page $p of $b / $c")
+        Log.d("ReaderVM", "Loading page $p…")
 
         viewModelScope.launch {
             isLoading.value = true
+
             try {
                 val pdfPath = repo.pdfPathFor(b, c)
 
                 val paras = extractor.extractParagraphsFromAsset(pdfPath, p - 1)
-                _paragraphs.value = paras.ifEmpty {
-                    listOf("This page contains no readable text.")
-                }
+                _paragraphs.value = paras.ifEmpty { listOf("This page contains no readable text.") }
 
                 currentParagraphIndex.value =
                     currentParagraphIndex.value.coerceIn(0, _paragraphs.value.lastIndex)
 
                 pageBitmap.value = renderPageBitmap(pdfPath, p - 1)
 
-                // -------- MAP DETECTION --------
                 val mapOnPage = mapInfoList.find { it.page == p }
                 mapForCurrentPage.value = mapOnPage?.name
-
-                if (mapOnPage != null) {
-                    tts.speak("This page contains a map. You can say 'open map' or press the Open Map button.")
-                }
 
                 delay(150)
                 speakCurrent()
@@ -120,11 +116,6 @@ class ReaderViewModel(
         }
     }
 
-    fun speak(message: String) {
-        tts.speak(message)
-    }
-
-
     private fun renderPageBitmap(assetPath: String, index: Int): Bitmap? {
         return try {
             val cacheFile = File(App.instance.cacheDir, assetPath.replace("/", "_"))
@@ -144,13 +135,14 @@ class ReaderViewModel(
             page.close()
             renderer.close()
             bmp
+
         } catch (e: Exception) {
             Log.e("ReaderVM", "Render error: ${e.message}")
             null
         }
     }
 
-    // Pagination -----------------------
+    // Navigation ---------------------------------------------
     fun nextParagraph() {
         if (currentParagraphIndex.value < _paragraphs.value.lastIndex) {
             currentParagraphIndex.value++
@@ -189,7 +181,9 @@ class ReaderViewModel(
     fun pauseTTS() = tts.pause()
     fun resumeTTS() = tts.resume()
 
-    // ------------------------------------------------------------
+    fun speak(msg: String) = tts.speak(msg)
+
+    // Voice Command -------------------------------------------
     fun startVoiceCommand(activity: Activity) {
         stt.startListening(activity) { spoken ->
             viewModelScope.launch { handleVoice(spoken) }
@@ -200,46 +194,55 @@ class ReaderViewModel(
         val cmd = parser.parse(raw)
 
         when (cmd.action) {
+
             ParsedCommand.Action.NEXT_PARAGRAPH -> nextParagraph()
             ParsedCommand.Action.PREV_PARAGRAPH -> prevParagraph()
             ParsedCommand.Action.NEXT_PAGE -> nextPage()
             ParsedCommand.Action.PREV_PAGE -> prevPage()
 
-            ParsedCommand.Action.GO_TO_PAGE -> cmd.page?.let {
-                currentPage.value = it
-                currentParagraphIndex.value = 0
+            ParsedCommand.Action.GO_TO_PAGE -> {
+                val p = cmd.page ?: return
+                currentPage.value = p
+                currentParagraphIndex.value = (cmd.paragraph ?: 1) - 1
+                currentLineIndex.value = (cmd.line ?: 1) - 1
                 loadCurrentPage()
             }
 
+            // ⭐ NEW LINE NAVIGATION SUPPORT
+            ParsedCommand.Action.GO_TO_LINE -> {
+                val line = cmd.line ?: 1
+                currentLineIndex.value = (line - 1).coerceAtLeast(0)
+                speak("Going to line $line.")
+                speakCurrent()   // resets reading from paragraph start (good for now)
+            }
+
             ParsedCommand.Action.OPEN_MAP -> {
-                val mapFile = mapForCurrentPage.value
-                if (mapFile != null) {
-                    openMapRequest.emit(mapFile)
-                } else {
-                    tts.speak("There is no map on this page.")
-                }
+                val map = mapForCurrentPage.value
+                if (map != null) openMapRequest.emit(map)
+                else speak("There is no map on this page.")
             }
 
             ParsedCommand.Action.WHERE_AM_I ->
-                tts.speak("You are in ${book.value}, chapter ${chapter.value}, page ${currentPage.value}, paragraph ${currentParagraphIndex.value + 1}")
+                speak(
+                    "You are in ${book.value}, chapter ${chapter.value}, " +
+                            "page ${currentPage.value}, paragraph ${currentParagraphIndex.value + 1}."
+                )
 
             ParsedCommand.Action.BOOKMARK -> {
-                val b = book.value
-                val c = chapter.value
-                if (b != null && c != null) {
-                    bookmarkDao.insert(
-                        Bookmark(
-                            book = b,
-                            chapter = c,
-                            page = currentPage.value,
-                            paragraphIndex = currentParagraphIndex.value
-                        )
+                val b = book.value ?: return
+                val c = chapter.value ?: return
+                bookmarkDao.insert(
+                    Bookmark(
+                        book = b,
+                        chapter = c,
+                        page = currentPage.value,
+                        paragraphIndex = currentParagraphIndex.value
                     )
-                    tts.speak("Bookmarked.")
-                }
+                )
+                speak("Bookmarked.")
             }
 
-            else -> tts.speak("Command not recognized.")
+            else -> speak("Command not recognized.")
         }
     }
 

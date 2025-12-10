@@ -40,6 +40,10 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         if (lastText.isNotBlank()) speak(lastText)
     }
 
+    fun isSpeaking(): Boolean {
+        return tts?.isSpeaking ?: false
+    }
+
     fun shutdown() {
         tts?.shutdown()
     }
